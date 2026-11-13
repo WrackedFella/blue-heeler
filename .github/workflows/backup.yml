@@ -1,0 +1,62 @@
+name: Backup
+
+# Nightly encrypted logical backup of the production database (ADR 0002).
+# The repository is public: only the age-encrypted file may leave this runner.
+# One-time setup and the restore drill are in docs/runbooks/backup-and-restore.md.
+
+on:
+  schedule:
+    - cron: "17 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    if: vars.BACKUP_AGE_RECIPIENTS != ''
+    runs-on: ubuntu-24.04
+    environment: backup
+    steps:
+      - name: Install PostgreSQL 17 client and age
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSo /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt noble-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17 age
+
+      - name: Dump
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+        run: |
+          umask 077
+          stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+          echo "STAMP=$stamp" >> "$GITHUB_ENV"
+          /usr/lib/postgresql/17/bin/pg_dump --format=custom --no-owner --no-privileges --file="$RUNNER_TEMP/pas.dump" "$DATABASE_URL"
+
+      - name: Verify the dump is restorable and holds the roster
+        run: |
+          /usr/lib/postgresql/17/bin/pg_restore --list "$RUNNER_TEMP/pas.dump" > "$RUNNER_TEMP/toc.txt"
+          grep -q "TABLE DATA public members" "$RUNNER_TEMP/toc.txt" || { echo "::error::members table missing from dump"; exit 1; }
+
+      - name: Encrypt, then delete the plain dump
+        env:
+          RECIPIENTS: ${{ vars.BACKUP_AGE_RECIPIENTS }}
+        run: |
+          printf '%s\n' "$RECIPIENTS" | tr ' ,' '\n\n' | sed '/^$/d' > "$RUNNER_TEMP/recipients.txt"
+          mkdir -p "$RUNNER_TEMP/out"
+          age --encrypt --recipients-file "$RUNNER_TEMP/recipients.txt" \
+            --output "$RUNNER_TEMP/out/pas-$STAMP.dump.age" "$RUNNER_TEMP/pas.dump"
+          shred -u "$RUNNER_TEMP/pas.dump"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pas-backup-${{ env.STAMP }}
+          path: ${{ runner.temp }}/out/pas-${{ env.STAMP }}.dump.age
+          retention-days: 35
+          if-no-files-found: error

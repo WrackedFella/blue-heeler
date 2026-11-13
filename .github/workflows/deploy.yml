@@ -1,0 +1,64 @@
+name: Deploy
+
+# Builds the image from main and rolls the Container App onto it.
+# One-time setup (Azure identity, variables, Container App) is in docs/runbooks/deploy.md.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      vars.AZURE_CONTAINERAPP_NAME != '' &&
+      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-24.04
+    environment: production
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/blue-heeler
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - id: tag
+        run: echo "image=${IMAGE,,}:$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - run: |
+          docker build -t "${{ steps.tag.outputs.image }}" .
+          docker push "${{ steps.tag.outputs.image }}"
+      # OpenID Connect federation: no Azure secret is stored in GitHub.
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - run: |
+          az containerapp update \
+            --name "${{ vars.AZURE_CONTAINERAPP_NAME }}" \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --image "${{ steps.tag.outputs.image }}"
+      - name: Wait for the new revision to report ready
+        run: |
+          url="https://$(az containerapp show -n "${{ vars.AZURE_CONTAINERAPP_NAME }}" -g "${{ vars.AZURE_RESOURCE_GROUP }}" --query properties.configuration.ingress.fqdn -o tsv)"
+          for attempt in $(seq 1 30); do
+            if curl -fsS "$url/readyz" >/dev/null; then echo "Ready at $url"; exit 0; fi
+            sleep 10
+          done
+          echo "::error::$url/readyz did not answer 200 within 5 minutes"
+          exit 1
