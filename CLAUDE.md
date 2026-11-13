@@ -1,8 +1,9 @@
 # Blue Heeler: project contract
 
-Volunteer scheduling and membership tracking for a volunteer-run animal shelter. Read
-`docs/adr/` before changing architecture and the spec in `docs/specs/` for the item at
-hand.
+Volunteer scheduling and membership tracking for a volunteer-run animal shelter. Start
+with the wiki index, `docs/wiki/README.md`: product context, roadmap, decisions and
+conventions. Read `docs/adr/` before changing architecture and the spec in
+`docs/specs/` for the item at hand.
 
 ## Settings
 
@@ -14,6 +15,7 @@ hand.
 - **Domain-logic paths:** `src/BlueHeeler.Domain/`
 - **Board header:** no
 - **Specs:** `docs/specs/`; **ADRs:** `docs/adr/`
+- **Docs (wiki):** `docs/wiki/` (index `docs/wiki/README.md`)
 
 ## Gate
 

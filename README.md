@@ -4,6 +4,8 @@ Volunteer scheduling and membership tracking for a volunteer-run animal shelter:
 sign-up, a member roster with roles and training tiers, and coverage reports. It is
 built to run free at about 100 users and to be easy to hand over.
 
+New to the project? Start with the [wiki](docs/wiki/README.md).
+
 ## Stack
 
 Vue 3 + TypeScript SPA served by one ASP.NET Core (.NET 10) API, PostgreSQL through EF
@@ -18,7 +20,7 @@ Container Apps. The reasoning is in [ADR 0001](docs/adr/0001-stack-and-hosting.m
 | `src/BlueHeeler.Api` | Composition root, endpoints, auth, EF Core, hosting |
 | `web` | The SPA |
 | `tests` | xUnit tests; API tests run the real pipeline against PostgreSQL in Docker |
-| `docs` | ADRs, specs, runbooks |
+| `docs` | [Wiki](docs/wiki/README.md) (start here), ADRs, specs, runbooks |
 
 ## Run locally
 
