@@ -36,4 +36,19 @@ public sealed class MemberTests
         Assert.Throws<ArgumentNullException>(() =>
             new Member(Guid.NewGuid(), "Sam", null!, Role.Walker, null, MemberStatus.Active, DateTimeOffset.UnixEpoch));
     }
+
+    [Fact]
+    public void Constructor_NameLongerThanMax_Throws()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            new Member(Guid.NewGuid(), new string('a', Member.MaxNameLength + 1), Email, Role.Walker, null, MemberStatus.Active, DateTimeOffset.UnixEpoch));
+    }
+
+    [Fact]
+    public void Constructor_NameOfMaxLength_Succeeds()
+    {
+        var member = new Member(Guid.NewGuid(), new string('a', Member.MaxNameLength), Email, Role.Walker, null, MemberStatus.Active, DateTimeOffset.UnixEpoch);
+
+        Assert.Equal(Member.MaxNameLength, member.Name.Length);
+    }
 }

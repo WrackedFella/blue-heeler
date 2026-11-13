@@ -5,6 +5,7 @@ using BlueHeeler.Domain.Members;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Npgsql;
 
 namespace BlueHeeler.Api.Auth;
 
@@ -44,7 +45,18 @@ internal sealed partial class ExternalSignIn(
                 break;
             case SignInDecision.BootstrapFirstAdmin(var admin):
                 db.Members.Add(admin);
-                await db.SaveChangesAsync(ct);
+                try
+                {
+                    await db.SaveChangesAsync(ct);
+                }
+                catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+                {
+                    // A parallel callback (double click, second tab) created the admin first; decide again against it.
+                    db.ChangeTracker.Clear();
+                    await CompleteAsync(context);
+                    return;
+                }
+
                 context.Principal = AppClaims.CookiePrincipal(admin);
                 LogBootstrapped(admin.Id);
                 break;

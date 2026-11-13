@@ -6,8 +6,12 @@ tiers at this app's size, but Azure needs a subscription with a payment method o
 
 ## 1 Neon database
 
-1. Create a Neon project (region close to the Azure region you pick), database `pas`.
-2. Copy the pooled connection string, converted to the .NET form:
+1. Create a Neon project on **PostgreSQL 17** (the backup workflow's `pg_dump` must
+   match the server's major version), in a region close to the Azure region you pick,
+   with database `pas`.
+2. Copy the **direct** connection string (the host without `-pooler`; migrations and
+   `pg_dump` need a direct session, and one replica needs no pooler), converted to the
+   .NET form:
    `Host=<host>;Database=pas;Username=<owner>;Password=<password>;SSL Mode=Require`.
    This is the app's `ConnectionStrings__Default`. Keep it out of the repository.
 3. Create the read-only backup role (section 1 of `backup-and-restore.md`).
@@ -35,7 +39,26 @@ az containerapp create -n ca-pas -g rg-pas --environment cae-pas \
   --env-vars ConnectionStrings__Default=secretref:db \
              Authentication__Google__ClientId=<client id> \
              Authentication__Google__ClientSecret=secretref:google-secret \
-             Bootstrap__FirstAdminEmail=<your gmail address>
+             Bootstrap__FirstAdminEmail=<your gmail address> \
+             AllowedHosts=<container-app-fqdn>
+```
+
+Then add HTTP health probes, so a revision only takes traffic once it can reach the
+database (the deploy workflow waits on this). Save as `probes.yaml` and apply with
+`az containerapp update -n ca-pas -g rg-pas --yaml probes.yaml`:
+
+```yaml
+properties:
+  template:
+    containers:
+      - name: ca-pas
+        probes:
+          - type: Liveness
+            httpGet: { path: /healthz, port: 8080 }
+          - type: Readiness
+            httpGet: { path: /readyz, port: 8080 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
 ```
 
 The placeholder image is replaced by the first deploy. `--max-replicas 1` keeps the
@@ -60,15 +83,21 @@ az ad app federated-credential create --id <appId> --parameters '{
 }'
 ```
 
-In the repository settings, create the environment `production` and these environment
-variables: `AZURE_CLIENT_ID` (the appId), `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`,
+In the repository settings, create the environment `production`, restricted to the
+`main` branch. Then add these as **repository** variables (Settings → Secrets and
+variables → Actions → Variables), not environment variables: the deploy job checks
+`AZURE_CONTAINERAPP_NAME` before it binds to the environment, so an environment-level
+value would make it skip silently. None of them is a secret.
+
+`AZURE_CLIENT_ID` (the appId), `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`,
 `AZURE_RESOURCE_GROUP` (`rg-pas`), `AZURE_CONTAINERAPP_NAME` (`ca-pas`).
 
 ## 5 Releases
 
-Every push to `main` that passes CI builds an image tagged with the commit, pushes it to
-GitHub Container Registry and rolls the Container App onto it, then waits for
-`/readyz`. Until `AZURE_CONTAINERAPP_NAME` is set, the deploy job skips itself.
+Every push to `main` runs the CI gate, then builds an image tagged with the commit,
+pushes it to GitHub Container Registry, rolls the Container App onto it, and waits for
+the new revision to report healthy. If it does not, the workflow fails and the previous
+revision keeps serving. Pull requests never deploy. Until `AZURE_CONTAINERAPP_NAME` is set, the deploy job skips itself.
 Migrations run when the new revision starts.
 
 To roll back, re-run the Deploy workflow for an earlier commit, or point the app at an

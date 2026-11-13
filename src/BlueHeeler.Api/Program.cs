@@ -24,6 +24,8 @@ app.MapMemberEndpoints();
 app.MapFallbackToFile("index.html");
 app.MapFallback("/api/{**path}", () => Results.NotFound());
 
+// Fail on bad configuration before touching the database, not after migrating it.
+app.Services.GetRequiredService<Microsoft.Extensions.Options.IStartupValidator>().Validate();
 await app.MigrateDatabaseAsync();
 await app.RunAsync();
 

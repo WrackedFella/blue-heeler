@@ -1,27 +1,46 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { getMembers, type Member } from '../api/client'
+import { useRouter } from 'vue-router'
+import { ApiError, getMembers, signOut, type Member } from '../api/client'
 
-const props = withDefaults(defineProps<{ load?: () => Promise<Member[]> }>(), { load: getMembers })
+const props = withDefaults(
+  defineProps<{ load?: () => Promise<Member[]>; endSession?: () => Promise<void> }>(),
+  { load: getMembers, endSession: signOut },
+)
 
 const roleLabels: Record<Member['role'], string> = { Admin: 'Admin', ShiftLead: 'Shift Lead', Walker: 'Walker' }
 
+const router = useRouter()
 const members = ref<Member[]>([])
-const failed = ref(false)
+const problem = ref<string | null>(null)
 
 onMounted(async () => {
   try {
     members.value = await props.load()
-  } catch {
-    failed.value = true
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      await router.push({ name: 'sign-in' })
+    } else if (error instanceof ApiError && error.status === 403) {
+      problem.value = "You don't have access to the member list."
+    } else {
+      problem.value = 'The member list could not be loaded. Try again shortly.'
+    }
   }
 })
+
+async function onSignOut() {
+  await props.endSession()
+  await router.push({ name: 'sign-in' })
+}
 </script>
 
 <template>
   <section>
-    <h1>Members</h1>
-    <p v-if="failed" role="alert">The member list could not be loaded. Try again shortly.</p>
+    <header class="bar">
+      <h1>Members</h1>
+      <button type="button" @click="onSignOut">Sign out</button>
+    </header>
+    <p v-if="problem" role="alert">{{ problem }}</p>
     <table v-else>
       <thead>
         <tr>
@@ -46,6 +65,11 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 table {
   width: 100%;
   border-collapse: collapse;

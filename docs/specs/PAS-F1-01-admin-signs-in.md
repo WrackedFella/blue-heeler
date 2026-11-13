@@ -89,10 +89,12 @@ take over a running system later.
 
 ### 2.4 Data
 
-Table `members`: `id uuid pk`, `name text not null`, `email text not null unique`
-(stored normalised: trimmed, lower-case), `role text not null`, `walker_tier int null`,
-`status text not null`, `created_at timestamptz not null`. Enums stored as text so the
-database stays readable in a backup and in Neon's console.
+Table `members`: `id uuid pk`, `name varchar(200) not null`, `email varchar(254) not
+null unique` (stored normalised: trimmed, lower-case), `role varchar(32) not null`,
+`walker_tier int null`, `status varchar(32) not null`, `created_at timestamptz not
+null`. Enums are stored as their names so the database stays readable in a backup and
+in Neon's console. A Google display name longer than 200 characters is truncated at
+bootstrap.
 
 ASP.NET Core Data Protection keys (which encrypt the auth cookie) are stored in the
 same database (`data_protection_keys`), so cookies survive container restarts and
@@ -103,9 +105,14 @@ scale-to-zero.
 - Health: `/healthz` (liveness, no dependencies) and `/readyz` (database reachable).
 - Forwarded headers are honoured so the OAuth redirect URI uses `https` behind the
   Container Apps ingress.
-- Options are bound and validated at startup: `ConnectionStrings:Default`,
-  `Authentication:Google:ClientId`/`ClientSecret`, `Bootstrap:FirstAdminEmail`.
-  Secrets come from Container Apps secrets, never from files in the repository.
+- Options are bound and validated at startup, before migrations run:
+  `ConnectionStrings:Default` and `Authentication:Google:ClientId`/`ClientSecret` are
+  required; `Bootstrap:FirstAdminEmail` is optional (it is only needed until the first
+  Admin exists) but must be an email address when set. Secrets come from Container Apps
+  secrets, never from files in the repository.
+- Deploys run only on pushes to `main` in this repository, after the CI gate, and wait
+  for the new revision's readiness probe; pull requests never reach production
+  credentials.
 - Unhandled exceptions become RFC 9457 problem details.
 - `Dockerfile`: Node stage builds the SPA, SDK stage publishes the API, runtime stage
   runs as the non-root `app` user on a pinned `aspnet` image.
@@ -125,6 +132,8 @@ entered.
   `/members`.
 - A router guard calls `GET /api/me`; a `401` routes to `/sign-in`. All HTTP calls go
   through `web/src/api/`, so swapping in a generated client later touches one folder.
+- The member list sends a `401` (session ended mid-visit) to `/sign-in`, says "no
+  access" on a `403`, and has a Sign out button.
 - No component library: one table and one button do not justify the dependency.
 
 ## 3 Out of scope
@@ -157,22 +166,22 @@ Shared once: `Directory.Build.props`, `Directory.Packages.props`, `.editorconfig
 
 | Scenario or rule | Test | Part |
 |---|---|---|
-| First admin signs in, sees self as Active Admin | `Api.Tests.SignInTests.GoogleSignIn_ConfiguredFirstAdmin_SeesSelfAsActiveAdmin` | B |
-| Signed-out visitor sent to sign in (API side) | `Api.Tests.MembersEndpointTests.GetMembers_SignedOut_Returns401` | B |
-| Signed-out visitor sent to sign in (SPA side) | `web/src/router.spec.ts`: "sends a signed-out visitor to the sign-in page" | C |
-| Unknown email refused, no cookie | `Api.Tests.SignInTests.GoogleSignIn_UnknownEmail_RedirectsWithErrorAndNoCookie` | B |
-| Policy: Active member signs in | `Domain.Tests.SignInPolicyTests.Decide_ActiveMember_SignsIn` | A |
-| Policy: first admin bootstraps only when no Admin exists | `Decide_FirstAdminEmail_NoAdminYet_Bootstraps`, `Decide_FirstAdminEmail_AdminExists_Refuses` | A |
-| Policy: unverified email refused even if it matches | `Decide_UnverifiedEmail_Refuses` | A |
-| Policy: Inactive member refused | `Decide_InactiveMember_Refuses` | A |
-| Policy: unknown email refused | `Decide_UnknownEmail_Refuses` | A |
-| Email normalisation and validation | `EmailAddressTests` (trim and case fold; rejects empty, no `@`, empty local or domain part, over 254 chars) | A |
-| Admin has ViewMembers, Walker and Shift Lead do not | `RolePermissionsTests` | A |
-| Every role has an entry in the table | `RolePermissionsTests.For_EveryRole_IsDefined` | A |
-| Role change takes effect on the next request | `MembersEndpointTests.GetMembers_MemberDemotedAfterSignIn_Returns403` | B |
-| Deactivated member's cookie stops working | `MembersEndpointTests.GetMembers_MemberDeactivatedAfterSignIn_Returns401` | B |
-| Liveness and readiness | `HealthTests.Healthz_Returns200`, `HealthTests.Readyz_WithDatabase_Returns200` | B |
-| Domain references no infrastructure | `Domain.Tests.ArchitectureTests.DomainAssembly_ReferencesOnlyTheBcl` | A |
+| First admin signs in, sees self as Active Admin | `SignInTests.GoogleSignIn_ConfiguredFirstAdmin_SeesSelfAsActiveAdmin` | B |
+| Signed-out visitor sent to sign in (API side) | `MembersEndpointTests.GetMembers_SignedOut_Returns401` | B |
+| Signed-out visitor sent to sign in (SPA side) | `router.spec.ts`: "sends a signed-out visitor to the sign-in page" | C |
+| Unknown, unverified or Inactive email refused, no cookie | `SignInTests.GoogleSignIn_UnknownEmail_…`, `…_UnverifiedEmail_…`, `…_InactiveMember_…` | B |
+| Bootstrap is case-insensitive and happens once | `SignInTests.GoogleSignIn_FirstAdminEmailInOtherCase_…`, `…_SecondSignInOfFirstAdmin_DoesNotDuplicate`, `…_FirstAdminAfterConcurrentBootstrap_…` | B |
+| Session cookie is `__Host-`, Secure, HttpOnly, SameSite=Lax, no Domain | `SignInTests.GoogleSignIn_Callback_SetsHardenedSessionCookie` | B |
+| `https` redirect URI behind the TLS-terminating proxy | `SignInTests.GoogleChallenge_BehindTlsTerminatingProxy_UsesHttpsRedirectUri` | B |
+| Policy: each decision branch | `SignInPolicyTests.Decide_*` (Active, Inactive, unknown, unverified, bootstrap only while no Admin, no setting, existing member, blank and overlong name) | A |
+| Email normalisation and validation | `EmailAddressTests` | A |
+| Member invariants (id, name blank or over 200, email) | `MemberTests` | A |
+| Admin has ViewMembers, others do not; every role has a row | `RolePermissionsTests` | A |
+| Role change, deactivation or deletion applies on the next request | `MembersEndpointTests.GetMembers_MemberDemotedAfterSignIn_Returns403`, `…Deactivated…_Returns401`, `…Deleted…_Returns401` | B |
+| A Walker cannot see the member list | `MembersEndpointTests.GetMembers_WalkerSignedIn_Returns403` | B |
+| Liveness and readiness | `HealthTests.HealthEndpoint_WithDatabase_Returns200` | B |
+| Member page: rows, load failure, 403, 401, sign out | `MembersPage.spec.ts` | C |
+| Domain references no infrastructure | `ArchitectureTests.DomainAssembly_ReferencesOnlyTheBcl` | A |
 
 API tests run the real pipeline with `WebApplicationFactory` against PostgreSQL in
 Testcontainers. Google itself is replaced only at the network edge: the Google

@@ -10,7 +10,7 @@ internal sealed class MemberConfiguration : IEntityTypeConfiguration<Member>
     {
         builder.HasKey(m => m.Id);
         builder.Property(m => m.Id).ValueGeneratedNever();
-        builder.Property(m => m.Name).IsRequired().HasMaxLength(200);
+        builder.Property(m => m.Name).IsRequired().HasMaxLength(Member.MaxNameLength);
 
         // Stored already normalised, so a plain unique index enforces one member per address.
         builder.Property(m => m.Email)

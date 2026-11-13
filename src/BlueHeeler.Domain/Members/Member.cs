@@ -3,8 +3,11 @@ namespace BlueHeeler.Domain.Members;
 /// <summary>A person on the shelter's volunteer roster. The roster, not the identity provider, decides who may sign in.</summary>
 public sealed class Member
 {
+    /// <summary>The longest name a member can have.</summary>
+    public const int MaxNameLength = 200;
+
     /// <summary>Creates a member.</summary>
-    /// <exception cref="ArgumentException"><paramref name="id"/> is empty or <paramref name="name"/> is blank.</exception>
+    /// <exception cref="ArgumentException"><paramref name="id"/> is empty, or <paramref name="name"/> is blank or longer than <see cref="MaxNameLength"/>.</exception>
     public Member(Guid id, string name, EmailAddress email, Role role, WalkerTier? tier, MemberStatus status, DateTimeOffset createdAt)
     {
         if (id == Guid.Empty)
@@ -14,6 +17,10 @@ public sealed class Member
 
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(email);
+        if (name.Trim().Length > MaxNameLength)
+        {
+            throw new ArgumentException($"A member name must be at most {MaxNameLength} characters.", nameof(name));
+        }
 
         Id = id;
         Name = name.Trim();

@@ -107,4 +107,50 @@ public sealed class SignInTests(PostgresFixture postgres) : IDisposable
         Assert.Equal(HttpStatusCode.NoContent, signOut.StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, me.StatusCode);
     }
+
+    [Fact]
+    public async Task GoogleSignIn_Callback_SetsHardenedSessionCookie()
+    {
+        var browser = _app.CreateBrowser();
+        _app.Google.NextUser = new GoogleUser("admin@example.org", true, "Justin Admin");
+        var challenge = await browser.GetAsync(new Uri("/api/auth/google", UriKind.Relative), Ct);
+        var state = System.Web.HttpUtility.ParseQueryString(challenge.Headers.Location!.Query)["state"];
+
+        var callback = await browser.GetAsync(new Uri($"/signin-google?code=c&state={Uri.EscapeDataString(state!)}", UriKind.Relative), Ct);
+
+        var session = Assert.Single(callback.Headers.GetValues("Set-Cookie"), c => c.StartsWith("__Host-pas-session=", StringComparison.Ordinal));
+        var attributes = session.Split(';', StringSplitOptions.TrimEntries).Skip(1).Select(a => a.ToLowerInvariant()).ToArray();
+        Assert.Contains("path=/", attributes);
+        Assert.Contains("secure", attributes);
+        Assert.Contains("httponly", attributes);
+        Assert.Contains("samesite=lax", attributes);
+        Assert.DoesNotContain(attributes, a => a.StartsWith("domain=", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task GoogleChallenge_BehindTlsTerminatingProxy_UsesHttpsRedirectUri()
+    {
+        var plainHttp = _app.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/auth/google");
+        request.Headers.Add("X-Forwarded-Proto", "https");
+
+        var challenge = await plainHttp.SendAsync(request, Ct);
+
+        var redirectUri = System.Web.HttpUtility.ParseQueryString(challenge.Headers.Location!.Query)["redirect_uri"];
+        Assert.Equal("https://localhost/signin-google", redirectUri);
+    }
+
+    [Fact]
+    public async Task GoogleSignIn_FirstAdminAfterConcurrentBootstrap_SignsInWithoutDuplicate()
+    {
+        var first = _app.CreateBrowser();
+        var second = _app.CreateBrowser();
+        var user = new GoogleUser("admin@example.org", true, "Justin Admin");
+
+        var landings = await Task.WhenAll(_app.SignInWithGoogleAsync(first, user), _app.SignInWithGoogleAsync(second, user));
+        var members = await second.GetFromJsonAsync<MemberResponse[]>("/api/members", Ct);
+
+        Assert.All(landings, l => Assert.Equal("/members", l));
+        Assert.Single(members!);
+    }
 }

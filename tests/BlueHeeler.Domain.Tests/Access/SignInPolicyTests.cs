@@ -123,4 +123,15 @@ public sealed class SignInPolicyTests
     {
         Assert.Throws<ArgumentNullException>(() => SignInPolicy.Decide(null!, existing: null, FirstAdmin, adminExists: false, Now));
     }
+
+    [Fact]
+    public void Decide_BootstrapWithOverlongName_TruncatesToMax()
+    {
+        var name = new string('n', Member.MaxNameLength + 50);
+
+        var decision = SignInPolicy.Decide(Verified(FirstAdmin, name), existing: null, FirstAdmin, adminExists: false, Now);
+
+        var bootstrap = Assert.IsType<SignInDecision.BootstrapFirstAdmin>(decision);
+        Assert.Equal(new string('n', Member.MaxNameLength), bootstrap.Member.Name);
+    }
 }

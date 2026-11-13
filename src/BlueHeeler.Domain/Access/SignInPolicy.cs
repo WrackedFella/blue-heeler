@@ -35,7 +35,12 @@ public static class SignInPolicy
 
         if (!adminExists && identity.Email == firstAdminEmail)
         {
-            var name = string.IsNullOrWhiteSpace(identity.DisplayName) ? identity.Email.Value : identity.DisplayName;
+            var name = string.IsNullOrWhiteSpace(identity.DisplayName) ? identity.Email.Value : identity.DisplayName.Trim();
+            if (name.Length > Member.MaxNameLength)
+            {
+                name = name[..Member.MaxNameLength];
+            }
+
             var admin = new Member(Guid.CreateVersion7(now), name, identity.Email, Role.Admin, tier: null, MemberStatus.Active, now);
             return new SignInDecision.BootstrapFirstAdmin(admin);
         }
