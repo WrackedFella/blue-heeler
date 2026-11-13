@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BlueHeeler.Api/BlueHeeler.Api.csproj" />
+    <Project Path="src/BlueHeeler.Domain/BlueHeeler.Domain.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/BlueHeeler.Api.Tests/BlueHeeler.Api.Tests.csproj" />
+    <Project Path="tests/BlueHeeler.Domain.Tests/BlueHeeler.Domain.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,8 @@
+{
+  "stryker-config": {
+    "test-runner": "mtp",
+    "project": "BlueHeeler.Domain.csproj",
+    "reporters": ["cleartext", "progress"],
+    "thresholds": { "high": 90, "low": 80, "break": 80 }
+  }
+}
