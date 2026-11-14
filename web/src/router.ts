@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory, type RouterHistory } from 'vue-router'
 import type { Me } from './api/client'
+import { currentMember } from './session'
 
 export interface RouterDeps {
   getMe: () => Promise<Me | null>
@@ -18,12 +19,26 @@ export function createAppRouter({ getMe, history = createWebHistory() }: RouterD
         component: () => import('./pages/MembersPage.vue'),
         meta: { requiresAuth: true },
       },
+      {
+        path: '/members/new',
+        name: 'member-new',
+        component: () => import('./pages/MemberFormPage.vue'),
+        meta: { requiresAuth: true },
+      },
+      {
+        path: '/members/:id/edit',
+        name: 'member-edit',
+        component: () => import('./pages/MemberFormPage.vue'),
+        props: true,
+        meta: { requiresAuth: true },
+      },
     ],
   })
 
   router.beforeEach(async (to) => {
     if (!to.meta.requiresAuth) return true
-    return (await getMe()) ? true : { name: 'sign-in' }
+    currentMember.value = await getMe()
+    return currentMember.value ? true : { name: 'sign-in' }
   })
 
   return router

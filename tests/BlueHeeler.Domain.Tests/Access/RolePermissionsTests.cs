@@ -5,18 +5,22 @@ namespace BlueHeeler.Domain.Tests.Access;
 
 public sealed class RolePermissionsTests
 {
-    [Fact]
-    public void For_Admin_GrantsViewMembers()
+    [Theory]
+    [InlineData(Permission.ViewMembers)]
+    [InlineData(Permission.ManageMembers)]
+    public void For_Admin_Grants(Permission permission)
     {
-        Assert.Contains(Permission.ViewMembers, RolePermissions.For(Role.Admin));
+        Assert.Contains(permission, RolePermissions.For(Role.Admin));
     }
 
     [Theory]
-    [InlineData(Role.ShiftLead)]
-    [InlineData(Role.Walker)]
-    public void For_NonAdminRole_DoesNotGrantViewMembers(Role role)
+    [InlineData(Role.ShiftLead, Permission.ViewMembers)]
+    [InlineData(Role.Walker, Permission.ViewMembers)]
+    [InlineData(Role.ShiftLead, Permission.ManageMembers)]
+    [InlineData(Role.Walker, Permission.ManageMembers)]
+    public void For_NonAdminRole_DoesNotGrant(Role role, Permission permission)
     {
-        Assert.DoesNotContain(Permission.ViewMembers, RolePermissions.For(role));
+        Assert.DoesNotContain(permission, RolePermissions.For(role));
     }
 
     [Fact]

@@ -31,6 +31,13 @@ public sealed class Member
         CreatedAt = createdAt;
     }
 
+    /// <summary>Puts a new member on the roster.</summary>
+    public static Member Add(Guid id, MemberDetails details, DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(details);
+        return new Member(id, details.Name, details.Email, details.Role, details.Tier, details.Status, now);
+    }
+
     /// <summary>Stable identifier.</summary>
     public Guid Id { get; }
 
@@ -51,4 +58,18 @@ public sealed class Member
 
     /// <summary>When the member was added.</summary>
     public DateTimeOffset CreatedAt { get; }
+
+    /// <summary>The editable fields as one value.</summary>
+    public MemberDetails Details => new(Name, Email, Role, Tier, Status);
+
+    /// <summary>Replaces the editable fields. Check <see cref="Access.RosterPolicy.CheckEdit"/> first.</summary>
+    public void Apply(MemberDetails details)
+    {
+        ArgumentNullException.ThrowIfNull(details);
+        Name = details.Name;
+        Email = details.Email;
+        Role = details.Role;
+        Tier = details.Tier;
+        Status = details.Status;
+    }
 }

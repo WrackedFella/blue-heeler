@@ -52,3 +52,44 @@ public sealed class MemberTests
         Assert.Equal(Member.MaxNameLength, member.Name.Length);
     }
 }
+
+public sealed class MemberChangeTests
+{
+    private static readonly DateTimeOffset Now = new(2026, 11, 14, 9, 0, 0, TimeSpan.Zero);
+
+    private static MemberDetails Details(string name, Role role, WalkerTier? tier, MemberStatus status) =>
+        new(name, EmailAddress.TryCreate(name.ToLowerInvariant() + "@example.org")!, role, tier, status);
+
+    [Fact]
+    public void Add_FromDetails_CopiesEveryField()
+    {
+        var id = Guid.NewGuid();
+
+        var member = Member.Add(id, Details("Sam", Role.Walker, WalkerTier.Tier1, MemberStatus.Active), Now);
+
+        Assert.Equal(id, member.Id);
+        Assert.Equal(Now, member.CreatedAt);
+        Assert.Equal(Details("Sam", Role.Walker, WalkerTier.Tier1, MemberStatus.Active), member.Details);
+    }
+
+    [Fact]
+    public void Apply_NewDetails_ReplacesEditableFieldsOnly()
+    {
+        var member = Member.Add(Guid.NewGuid(), Details("Sam", Role.Walker, WalkerTier.Tier1, MemberStatus.Active), Now);
+        var (id, created) = (member.Id, member.CreatedAt);
+        var changed = Details("Alex", Role.ShiftLead, WalkerTier.Tier2, MemberStatus.Inactive);
+
+        member.Apply(changed);
+
+        Assert.Equal(changed, member.Details);
+        Assert.Equal((id, created), (member.Id, member.CreatedAt));
+    }
+
+    [Fact]
+    public void Apply_Null_Throws()
+    {
+        var member = Member.Add(Guid.NewGuid(), Details("Sam", Role.Walker, null, MemberStatus.Active), Now);
+
+        Assert.Throws<ArgumentNullException>(() => member.Apply(null!));
+    }
+}

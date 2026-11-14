@@ -92,7 +92,7 @@ public sealed class SignInTests(PostgresFixture postgres) : IDisposable
 
         Assert.Equal("Justin Admin", me!.Name);
         Assert.Equal("Admin", me.Role);
-        Assert.Equal(["ViewMembers"], me.Permissions);
+        Assert.Equal(["ViewMembers", "ManageMembers"], me.Permissions);
     }
 
     [Fact]
@@ -101,7 +101,7 @@ public sealed class SignInTests(PostgresFixture postgres) : IDisposable
         var browser = _app.CreateBrowser();
         await _app.SignInWithGoogleAsync(browser, new GoogleUser("admin@example.org", true, "Justin Admin"));
 
-        var signOut = await browser.PostAsync(new Uri("/api/auth/sign-out", UriKind.Relative), content: null, Ct);
+        var signOut = await browser.SendAsync(HttpMethod.Post, "/api/auth/sign-out");
         var me = await browser.GetAsync(new Uri("/api/me", UriKind.Relative), Ct);
 
         Assert.Equal(HttpStatusCode.NoContent, signOut.StatusCode);

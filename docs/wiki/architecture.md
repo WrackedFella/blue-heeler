@@ -49,8 +49,8 @@ flowchart TD
 ## 3 Request pipeline
 
 `Program.cs` order matters: forwarded headers (so OAuth redirects use `https` behind
-the ingress) → problem-details exception handler → static SPA files →
-authentication → authorization → endpoints → SPA fallback. Unknown `/api/*` paths
+the ingress) → problem-details exception handler → static SPA files → cross-site
+request header check → authentication → authorization → endpoints → SPA fallback. Unknown `/api/*` paths
 return 404 rather than the SPA. Options are validated at startup, before migrations
 run, so bad configuration fails fast without touching the database.
 
@@ -93,6 +93,13 @@ Why it's shaped this way (details in the [PAS-F1-01 spec §2.2–2.3](../specs/P
   exists, so the setting can't be used to take over a running system.
 - For `/api/*`, no cookie answers 401 and no permission 403 (no redirects), so the SPA
   decides where to send the user.
+- **Cross-site request protection:** every `POST`/`PUT`/`PATCH`/`DELETE` under `/api`
+  must carry `X-PAS-Request: 1` (`CsrfHeaderMiddleware`), or it gets 400. A cross-site
+  page can't add a custom header without a CORS preflight, and the API grants none, so
+  no antiforgery token is needed; `SameSite=Lax` is a second layer. The SPA client adds
+  the header ([PAS-F1-02 spec §2.3](../specs/PAS-F1-02-admin-manages-members.md)).
+- **The last Active Admin can't be demoted or deactivated** (`RosterPolicy`): the
+  bootstrap won't run again while any Admin exists, so this would lock everyone out.
 
 ## 5 Data
 
@@ -119,7 +126,6 @@ each when the first feature needs it, not before.
 | Domain events | Raised in-process between contexts (e.g. member made Inactive → cancel future sign-ups) | First cross-context rule |
 | Integrations | Port owned by the core, named for the capability, adapter per vendor; transactional outbox so a vendor outage can't roll back a sign-up | First integration (email reminders or mailing lists) |
 | API contract | OpenAPI document → TS client via `openapi-typescript`, so a breaking API change fails CI | When hand-written client types start drifting |
-| State-changing endpoints | Antiforgery protection with the cookie | First POST/PUT (PAS-F1-02) |
 | Sensitive fields | Encrypt emergency contacts with Data Protection; export-and-delete path per member | Phase 2–3 |
 | Observability | OpenTelemetry to Application Insights free tier | Before go-live |
 

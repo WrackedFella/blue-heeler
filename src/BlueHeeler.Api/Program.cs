@@ -14,6 +14,7 @@ app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.UseDefaultFiles();
 app.UseStaticFiles();
+app.UseMiddleware<CsrfHeaderMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
 

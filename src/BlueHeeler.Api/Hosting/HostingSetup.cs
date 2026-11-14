@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using BlueHeeler.Api.Data;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -27,6 +28,7 @@ internal static class HostingSetup
         services.AddDataProtection().SetApplicationName("blue-heeler").PersistKeysToDbContext<AppDbContext>();
         services.AddSingleton(TimeProvider.System);
         services.AddProblemDetails();
+        services.ConfigureHttpJsonOptions(options => options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
         services.AddHealthChecks().AddDbContextCheck<AppDbContext>(tags: [ReadyTag]);
 
         services.Configure<ForwardedHeadersOptions>(options =>

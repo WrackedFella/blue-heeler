@@ -25,6 +25,7 @@ internal sealed class MemberConfiguration : IEntityTypeConfiguration<Member>
         builder.Property(m => m.Tier).HasColumnName("walker_tier");
         builder.HasIndex(m => m.Role);
         builder.Property(m => m.CreatedAt);
+        builder.Ignore(m => m.Details);
     }
 
     private static EmailAddress FromStored(string value) =>

@@ -33,8 +33,11 @@ internal sealed partial class ExternalSignIn(
             email,
             principal.FindFirstValue(EmailVerifiedClaim) == "true",
             principal.FindFirstValue(ClaimTypes.Name) ?? string.Empty);
-        var existing = await db.Members.SingleOrDefaultAsync(m => m.Email == email, ct);
+        // Admin check first: if a parallel bootstrap commits between the two reads, this order sees
+        // either neither row (and retries on the unique violation) or the new member, never "admin
+        // exists but you are unknown".
         var adminExists = await db.Members.AnyAsync(m => m.Role == Role.Admin, ct);
+        var existing = await db.Members.SingleOrDefaultAsync(m => m.Email == email, ct);
 
         var decision = SignInPolicy.Decide(identity, existing, bootstrap.Value.FirstAdmin, adminExists, time.GetUtcNow());
         switch (decision)
