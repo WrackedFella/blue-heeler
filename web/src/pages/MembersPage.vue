@@ -2,7 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ApiError, getMembers, signOut, type Member } from '../api/client'
-import { can } from '../session'
+import { can, currentMember } from '../session'
 
 const props = withDefaults(
   defineProps<{ load?: () => Promise<Member[]>; endSession?: () => Promise<void> }>(),
@@ -32,6 +32,7 @@ onMounted(async () => {
 
 async function onSignOut() {
   await props.endSession()
+  currentMember.value = null
   await router.push({ name: 'sign-in' })
 }
 </script>

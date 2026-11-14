@@ -103,4 +103,26 @@ describe('MemberFormPage', () => {
 
     expect(page.find('[role="alert"]').text()).toContain('only active admin')
   })
+
+  it('keeps an edit form disabled when the member fails to load', async () => {
+    const { api, calls } = fakeApi({ load: () => Promise.reject(new Error('down')) })
+    const { page } = await mountForm({ id: '7', api })
+
+    await page.find('form').trigger('submit')
+    await settle()
+
+    expect(page.find('button[type="submit"]').attributes('disabled')).toBeDefined()
+    expect(page.find('fieldset').attributes('disabled')).toBeDefined()
+    expect(calls.edit).toEqual([])
+  })
+
+  it('shows the server detail for a 400 without field errors', async () => {
+    const { api } = fakeApi({ add: () => Promise.reject(new ApiError(400, '/api/members', 'Missing request header')) })
+    const { page } = await mountForm({ api })
+
+    await page.find('form').trigger('submit')
+    await settle()
+
+    expect(page.find('[role="alert"]').text()).toBe('Missing request header')
+  })
 })

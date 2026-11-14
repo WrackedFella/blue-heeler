@@ -31,7 +31,7 @@ well-documented parts over the cheapest-possible or most novel ones.
 ## Consequences
 
 - Same-origin cookies avoid CORS and token storage in the browser. State-changing
-  endpoints must add antiforgery protection when the first one lands.
+  endpoints need cross-site request protection; ADR 0003 records how.
 - One image means one release unit: the SPA and API cannot drift apart.
 - Scale to zero costs nothing idle but adds a cold start (Container Apps plus Neon
   resuming), felt by the first visitor after a quiet spell. Setting a minimum of one

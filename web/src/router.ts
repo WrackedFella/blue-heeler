@@ -37,6 +37,7 @@ export function createAppRouter({ getMe, history = createWebHistory() }: RouterD
 
   router.beforeEach(async (to) => {
     if (!to.meta.requiresAuth) return true
+    // Refreshed on every guarded navigation, and cleared when nobody is signed in.
     currentMember.value = await getMe()
     return currentMember.value ? true : { name: 'sign-in' }
   })

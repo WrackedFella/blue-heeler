@@ -53,4 +53,28 @@ public sealed class RosterPolicyTests
         Assert.Throws<ArgumentNullException>(() => RosterPolicy.CheckEdit(null!, As(Role.Admin, MemberStatus.Active), 1));
         Assert.Throws<ArgumentNullException>(() => RosterPolicy.CheckEdit(Admin(), null!, 1));
     }
+
+    [Fact]
+    public void CheckEdit_LastActiveAdminChangesEmail_Refuses()
+    {
+        var proposed = new MemberDetails("Justin", EmailAddress.TryCreate("justin@exmaple.org")!, Role.Admin, null, MemberStatus.Active);
+
+        Assert.Equal(EditRefusal.LastActiveAdminEmail, RosterPolicy.CheckEdit(Admin(), proposed, activeAdminCount: 1));
+    }
+
+    [Fact]
+    public void CheckEdit_AdminChangesEmail_OtherActiveAdminExists_Allows()
+    {
+        var proposed = new MemberDetails("Justin", EmailAddress.TryCreate("justin@exmaple.org")!, Role.Admin, null, MemberStatus.Active);
+
+        Assert.Null(RosterPolicy.CheckEdit(Admin(), proposed, activeAdminCount: 2));
+    }
+
+    [Fact]
+    public void CheckEdit_LastActiveAdminRenamed_Allows()
+    {
+        var proposed = new MemberDetails("Justin M", Email, Role.Admin, null, MemberStatus.Active);
+
+        Assert.Null(RosterPolicy.CheckEdit(Admin(), proposed, activeAdminCount: 1));
+    }
 }

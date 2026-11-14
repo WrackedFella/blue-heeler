@@ -212,4 +212,42 @@ public sealed class MemberManagementTests(PostgresFixture postgres) : IDisposabl
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData("0")]
+    public async Task AddMember_NumericRole_Returns400(object role)
+    {
+        var admin = await AdminAsync();
+
+        var response = await admin.AddMemberAsync(new { name = "Sam", email = "sam@example.org", role, tier = 1, status = "Active" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetMember_AsWalker_Returns403()
+    {
+        var admin = await AdminAsync();
+        var samMember = await AddSamAsync(admin);
+        var sam = _app.CreateBrowser();
+        await _app.SignInWithGoogleAsync(sam, new GoogleUser("sam@example.org", true, "Sam"));
+
+        var response = await sam.GetAsync(new Uri($"/api/members/{samMember.Id}", UriKind.Relative), Ct);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task EditMember_LastActiveAdminChangesEmail_Returns409AndKeepsEmail()
+    {
+        var admin = await AdminAsync();
+        var self = (await admin.GetFromJsonAsync<MeResponse>("/api/me", Ct))!;
+
+        var response = await admin.EditMemberAsync(self.Id, MemberBody("Justin Admin", "admin@exmaple.org", "Admin", null));
+        var me = await admin.GetFromJsonAsync<MeResponse>("/api/me", Ct);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal("admin@example.org", me!.Email);
+    }
 }

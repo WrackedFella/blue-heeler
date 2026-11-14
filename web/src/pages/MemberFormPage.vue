@@ -37,18 +37,22 @@ const form = reactive<MemberInput>({ name: '', email: '', role: 'Walker', tier: 
 const fieldErrors = ref<Record<string, string[]>>({})
 const problem = ref<string | null>(null)
 const saving = ref(false)
+// An edit form stays disabled until the member loads, so its defaults can never overwrite a real member.
+const ready = ref(!props.id)
 
 onMounted(async () => {
   if (!props.id) return
   try {
     const { name, email, role, tier, status } = await props.api.load(props.id)
     Object.assign(form, { name, email, role, tier, status })
+    ready.value = true
   } catch {
     problem.value = 'This member could not be loaded.'
   }
 })
 
 async function save() {
+  if (!ready.value) return
   saving.value = true
   fieldErrors.value = {}
   problem.value = null
@@ -56,7 +60,7 @@ async function save() {
     await (props.id ? props.api.edit(props.id, { ...form }) : props.api.add({ ...form }))
     await router.push({ name: 'members' })
   } catch (error) {
-    if (error instanceof ApiError && error.status === 400) {
+    if (error instanceof ApiError && Object.keys(error.fieldErrors).length > 0) {
       fieldErrors.value = error.fieldErrors
     } else if (error instanceof ApiError && error.detail) {
       problem.value = error.detail
@@ -76,6 +80,7 @@ const errorFor = (field: string) => fieldErrors.value[field]?.[0]
     <h1>{{ id ? 'Edit member' : 'Add member' }}</h1>
     <p v-if="problem" role="alert">{{ problem }}</p>
     <form novalidate @submit.prevent="save">
+      <fieldset :disabled="!ready || saving">
       <label>
         Name
         <input v-model="form.name" name="name" autocomplete="off" required />
@@ -108,8 +113,9 @@ const errorFor = (field: string) => fieldErrors.value[field]?.[0]
         </select>
         <span v-if="errorFor('status')" class="error" data-field="status">{{ errorFor('status') }}</span>
       </label>
+      </fieldset>
       <div class="actions">
-        <button type="submit" :disabled="saving">Save</button>
+        <button type="submit" :disabled="!ready || saving">Save</button>
         <RouterLink :to="{ name: 'members' }">Cancel</RouterLink>
       </div>
     </form>
@@ -117,10 +123,16 @@ const errorFor = (field: string) => fieldErrors.value[field]?.[0]
 </template>
 
 <style scoped>
-form {
+form,
+fieldset {
   display: grid;
   gap: 1rem;
   max-width: 28rem;
+}
+fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
 }
 label {
   display: grid;

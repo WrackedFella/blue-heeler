@@ -6,6 +6,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddAppHosting(builder.Configuration);
 builder.Services.AddAppAuth(builder.Configuration);
+builder.Services.AddMembers();
 
 var app = builder.Build();
 

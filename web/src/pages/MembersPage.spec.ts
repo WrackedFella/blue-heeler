@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { createMemoryHistory } from 'vue-router'
 import { ApiError, type Member } from '../api/client'
 import { createAppRouter } from '../router'
+import { currentMember } from '../session'
 import { settle } from '../test-support'
 import MembersPage from './MembersPage.vue'
 
@@ -77,5 +78,14 @@ describe('MembersPage', () => {
     const { page } = await mountPage({ load: async () => [justin, sam] }, ['ViewMembers'])
 
     expect(page.findAll('a')).toHaveLength(0)
+  })
+
+  it('forgets the signed-in member on sign out', async () => {
+    const { page } = await mountPage({ load: async () => [justin], endSession: async () => {} })
+
+    await page.find('button').trigger('click')
+    await settle()
+
+    expect(currentMember.value).toBeNull()
   })
 })

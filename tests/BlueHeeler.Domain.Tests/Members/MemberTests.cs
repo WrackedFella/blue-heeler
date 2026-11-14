@@ -60,6 +60,8 @@ public sealed class MemberChangeTests
     private static MemberDetails Details(string name, Role role, WalkerTier? tier, MemberStatus status) =>
         new(name, EmailAddress.TryCreate(name.ToLowerInvariant() + "@example.org")!, role, tier, status);
 
+    private static MemberDetails DetailsOf(Member m) => new(m.Name, m.Email, m.Role, m.Tier, m.Status);
+
     [Fact]
     public void Add_FromDetails_CopiesEveryField()
     {
@@ -69,7 +71,7 @@ public sealed class MemberChangeTests
 
         Assert.Equal(id, member.Id);
         Assert.Equal(Now, member.CreatedAt);
-        Assert.Equal(Details("Sam", Role.Walker, WalkerTier.Tier1, MemberStatus.Active), member.Details);
+        Assert.Equal(Details("Sam", Role.Walker, WalkerTier.Tier1, MemberStatus.Active), DetailsOf(member));
     }
 
     [Fact]
@@ -81,7 +83,7 @@ public sealed class MemberChangeTests
 
         member.Apply(changed);
 
-        Assert.Equal(changed, member.Details);
+        Assert.Equal(changed, DetailsOf(member));
         Assert.Equal((id, created), (member.Id, member.CreatedAt));
     }
 
@@ -91,5 +93,20 @@ public sealed class MemberChangeTests
         var member = Member.Add(Guid.NewGuid(), Details("Sam", Role.Walker, null, MemberStatus.Active), Now);
 
         Assert.Throws<ArgumentNullException>(() => member.Apply(null!));
+    }
+}
+
+public sealed class MemberApplyInvariantTests
+{
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Apply_DetailsWithBlankName_Throws(string name)
+    {
+        var email = EmailAddress.TryCreate("sam@example.org")!;
+        var member = new Member(Guid.NewGuid(), "Sam", email, Role.Walker, null, MemberStatus.Active, DateTimeOffset.UnixEpoch);
+
+        Assert.Throws<ArgumentException>(() => member.Apply(new MemberDetails(name, email, Role.Walker, null, MemberStatus.Active)));
+        Assert.Equal("Sam", member.Name);
     }
 }

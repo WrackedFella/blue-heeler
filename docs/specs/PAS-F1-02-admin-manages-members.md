@@ -1,7 +1,7 @@
 # PAS-F1-02 Admin adds and edits members, who can then sign in
 
 - **Feature:** PAS-F1 Phase 1, first usable release
-- **Status:** In review (spec, tests and code in one PR)
+- **Status:** Done when its PR merges (spec, tests and code in one PR)
 - **Gate class:** `domain`
 - **Depends on:** PAS-F1-01
 
@@ -46,8 +46,8 @@ The refusals already work from PAS-F1-01; this item adds the screens and endpoin
 that put members on the roster and change them, and the "contact the volunteer
 coordinator" wording.
 
-One rule is added that no scenario names: **the last Active Admin cannot be demoted or
-set Inactive.** The first-admin bootstrap only runs while no Admin exists, so without
+One rule is added that no scenario names: **the only Active Admin cannot be demoted,
+set Inactive, or given a different email.** The first-admin bootstrap only runs while no Admin exists, so without
 this rule one mis-click could lock everyone out until someone edits the database.
 
 ## 2 Design
@@ -61,8 +61,10 @@ this rule one mis-click could lock everyone out until someone edits the database
   email per `EmailAddress`; role and status present; tier absent or 1 to 3. A result
   type, not exceptions, because bad form input is expected.
 - `Member.Add(id, details, now)` builds a member; `member.Apply(details)` changes one.
-- `RosterPolicy.CheckEdit(current, proposed, activeAdminCount)` returns `null` or
-  `EditRefusal.LastActiveAdmin` when the change would leave no Active Admin.
+- `RosterPolicy.CheckEdit(current, proposed, activeAdminCount)` returns `null`,
+  `EditRefusal.LastActiveAdmin` (the change would leave no Active Admin) or
+  `EditRefusal.LastActiveAdminEmail` (it would change the only Active Admin's sign-in
+  email, where a typo locks everyone out once their session ends).
 - `Permission.ManageMembers`, granted to `Admin` only.
 
 ### 2.2 API
@@ -83,7 +85,8 @@ this rule one mis-click could lock everyone out until someone edits the database
 ### 2.3 Cross-site request protection
 
 Every `POST`, `PUT`, `PATCH` and `DELETE` under `/api` must carry the header
-`X-PAS-Request: 1`, or it is refused with 400 before authentication runs. The SPA's
+`X-PAS-Request` (any value; the SPA sends `1`), or it is refused with 400 before
+authentication runs. Recorded as [ADR 0003](../adr/0003-cross-site-request-header.md). The SPA's
 client adds it to every call.
 
 Why a header rather than ASP.NET Core antiforgery tokens: the SPA sends JSON from the
@@ -99,9 +102,10 @@ are not used.
   fetched, so pages can check permissions without another request.
 - Members page: "Add member" button and an "Edit" link per row, shown only with
   `ManageMembers`.
-- `/members/new` and `/members/:id/edit` share `MemberForm.vue`: name, email, role,
+- `/members/new` and `/members/:id/edit` share `MemberFormPage.vue`: name, email, role,
   tier (blank, 1, 2, 3) and status. Server errors are shown next to their fields; a 409
-  shows its message above the form.
+  shows its message above the form. An edit form stays disabled until the member has
+  loaded, so its defaults can never be saved over a real member.
 - Sign-in page: every refusal tells the person to contact the volunteer coordinator
   (already the case; now covered by a test).
 
@@ -120,9 +124,9 @@ are not used.
 | Part | Files |
 |---|---|
 | A, domain | `src/BlueHeeler.Domain/Members/{MemberDetails,Member}.cs`, `src/BlueHeeler.Domain/Access/{Permission,RolePermissions,RosterPolicy}.cs`, matching tests |
-| B, API | `src/BlueHeeler.Api/Members/*`, `src/BlueHeeler.Api/Hosting/{HostingSetup,CsrfHeaderMiddleware}.cs`, `src/BlueHeeler.Api/Data/MemberConfiguration.cs`, `src/BlueHeeler.Api/Auth/ExternalSignIn.cs` (read order fix), `Program.cs`, `tests/BlueHeeler.Api.Tests/**` |
+| B, API | `src/BlueHeeler.Api/Members/*` (endpoints, request, response, `MemberLog`), `src/BlueHeeler.Api/Hosting/{HostingSetup,CsrfHeaderMiddleware}.cs`, `src/BlueHeeler.Api/Data/MemberConfiguration.cs`, `src/BlueHeeler.Api/Auth/ExternalSignIn.cs` (read order fix), `Program.cs`, `tests/BlueHeeler.Api.Tests/**` |
 | C, SPA | `web/src/**` (including `session.ts`, `test-support.ts`, `pages/MemberFormPage.vue`) |
-| D, docs | this spec, `docs/wiki/{roadmap,architecture,development,domain}.md` |
+| D, docs | this spec, ADR 0003 and its note in ADR 0001, `docs/wiki/{roadmap,architecture,development,domain}.md` |
 
 B depends on A. C and D are independent.
 
@@ -140,16 +144,21 @@ B depends on A. C and D are independent.
 | Validation: blank name, bad email, tier out of range, missing role or status | `MemberDetailsTests.Create_*` | A |
 | Validation surfaces as 400 with field errors | `MemberManagementTests.AddMember_InvalidInput_Returns400WithFieldErrors` | B |
 | Duplicate email | `MemberManagementTests.AddMember_EmailInUse_Returns409`, `EditMember_EmailOfAnotherMember_Returns409` | B |
-| Last Active Admin can't be demoted or deactivated | `RosterPolicyTests.*`, `MemberManagementTests.EditMember_LastActiveAdminDemoted_Returns409` | A, B |
+| Last Active Admin can't be demoted, deactivated or re-emailed | `RosterPolicyTests.*`, `MemberManagementTests.EditMember_LastActiveAdminDemoted_Returns409AndKeepsAdmin`, `…_LastActiveAdminChangesEmail_Returns409AndKeepsEmail` | A, B |
+| Roles only bind by name, never by number | `MemberManagementTests.AddMember_NumericRole_Returns400`, `…_UnknownRoleName_Returns400` | B |
+| A Walker can't read one member's details | `MemberManagementTests.GetMember_AsWalker_Returns403` | B |
 | A second admin can demote the first | `RosterPolicyTests.CheckEdit_DemoteAdmin_OtherActiveAdminExists_Allows` | A |
 | Unknown member id | `MemberManagementTests.EditMember_UnknownId_Returns404`, `GetMember_UnknownId_Returns404` | B |
-| Mutating call without the header is refused | `CsrfHeaderTests.Post_WithoutHeader_Returns400`, `SignOut_WithoutHeader_Returns400` | B |
+| Mutating call without the header is refused | `CsrfHeaderTests.Post_WithoutHeader_Returns400AndChangesNothing`, `SignOut_WithoutHeader_Returns400AndKeepsSession` | B |
 | `ManageMembers` granted to Admin only | `RolePermissionsTests` | A |
-| Form: add, edit, field errors, hidden without permission | `MemberForm.spec.ts`, `MembersPage.spec.ts` | C |
+| Form: add, edit, field errors, server detail, disabled until loaded; links hidden without permission | `MemberFormPage.spec.ts`, `MembersPage.spec.ts` | C |
 
 ## 6 Risks
 
-- **Locking everyone out.** Covered by the last-Active-Admin rule. Two admins demoting
-  each other at the same instant could still both succeed; acceptable at this size.
+- **Locking everyone out.** Covered by the last-Active-Admin rules. Two gaps remain,
+  both accepted at this size: two admins demoting each other at the same instant could
+  both succeed; and an admin could add a second Admin with a mistyped email and then
+  demote themselves, leaving an Admin who can never sign in. Recovery for either is a
+  database edit (or deleting all Admin rows so the bootstrap runs again).
 - **Email changes break sign-in** if an admin mistypes. The member list shows the email,
   and the person is refused with the coordinator message, so it surfaces quickly.

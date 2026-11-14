@@ -94,12 +94,13 @@ Why it's shaped this way (details in the [PAS-F1-01 spec §2.2–2.3](../specs/P
 - For `/api/*`, no cookie answers 401 and no permission 403 (no redirects), so the SPA
   decides where to send the user.
 - **Cross-site request protection:** every `POST`/`PUT`/`PATCH`/`DELETE` under `/api`
-  must carry `X-PAS-Request: 1` (`CsrfHeaderMiddleware`), or it gets 400. A cross-site
+  must carry the `X-PAS-Request` header (`CsrfHeaderMiddleware`; any value), or it gets 400. A cross-site
   page can't add a custom header without a CORS preflight, and the API grants none, so
   no antiforgery token is needed; `SameSite=Lax` is a second layer. The SPA client adds
-  the header ([PAS-F1-02 spec §2.3](../specs/PAS-F1-02-admin-manages-members.md)).
-- **The last Active Admin can't be demoted or deactivated** (`RosterPolicy`): the
-  bootstrap won't run again while any Admin exists, so this would lock everyone out.
+  the header ([ADR 0003](../adr/0003-cross-site-request-header.md)).
+- **The last Active Admin can't be demoted, deactivated or given a new email**
+  (`RosterPolicy`): the bootstrap won't run again while any Admin exists, so any of
+  these could lock everyone out.
 
 ## 5 Data
 
