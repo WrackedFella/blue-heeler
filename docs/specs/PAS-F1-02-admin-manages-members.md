@@ -84,17 +84,19 @@ this rule one mis-click could lock everyone out until someone edits the database
 
 ### 2.3 Cross-site request protection
 
-Every `POST`, `PUT`, `PATCH` and `DELETE` under `/api` must carry the header
-`X-PAS-Request` (any value; the SPA sends `1`), or it is refused with 400 before
-authentication runs. Recorded as [ADR 0003](../adr/0003-cross-site-request-header.md). The SPA's
-client adds it to every call.
+Every `POST`, `PUT`, `PATCH` and `DELETE` under `/api` must carry an ASP.NET Core
+antiforgery token in the `X-XSRF-TOKEN` header, or it is refused with 400. The SPA's
+client gets the token from `GET /api/antiforgery/token` before its first
+state-changing call and fetches a new one after signing out or a refused call, because
+tokens are bound to the signed-in member. Validation runs after authorization, so a
+signed-out caller still gets 401. Recorded as
+[ADR 0003](../adr/0003-cross-site-request-protection.md), which also says why CORS
+stays off.
 
-Why a header rather than ASP.NET Core antiforgery tokens: the SPA sends JSON from the
-same origin. A cross-site page cannot add a custom header without a CORS preflight,
-and the API allows no cross-origin requests, so the header is a complete defence (the
-OWASP "custom request header" pattern) with no token endpoint or token storage. The
-`SameSite=Lax` cookie remains a second layer. Form posts, which antiforgery exists for,
-are not used.
+Why tokens rather than only a custom header: both are OWASP primary defences, but a
+header holds only while the API allows no cross-origin requests. The token keeps
+holding if CORS is ever opened, and it is the pattern ASP.NET Core ships. The
+`SameSite=Lax` cookie remains a second layer.
 
 ### 2.4 SPA
 
@@ -124,7 +126,7 @@ are not used.
 | Part | Files |
 |---|---|
 | A, domain | `src/BlueHeeler.Domain/Members/{MemberDetails,Member}.cs`, `src/BlueHeeler.Domain/Access/{Permission,RolePermissions,RosterPolicy}.cs`, matching tests |
-| B, API | `src/BlueHeeler.Api/Members/*` (endpoints, request, response, `MemberLog`), `src/BlueHeeler.Api/Hosting/{HostingSetup,CsrfHeaderMiddleware}.cs`, `src/BlueHeeler.Api/Data/MemberConfiguration.cs`, `src/BlueHeeler.Api/Auth/ExternalSignIn.cs` (read order fix), `Program.cs`, `tests/BlueHeeler.Api.Tests/**` |
+| B, API | `src/BlueHeeler.Api/Members/*` (endpoints, request, response, `MemberLog`), `src/BlueHeeler.Api/Hosting/{HostingSetup,AntiforgerySetup}.cs`, `src/BlueHeeler.Api/Data/MemberConfiguration.cs`, `src/BlueHeeler.Api/Auth/ExternalSignIn.cs` (read order fix), `Program.cs`, `tests/BlueHeeler.Api.Tests/**` |
 | C, SPA | `web/src/**` (including `session.ts`, `test-support.ts`, `pages/MemberFormPage.vue`) |
 | D, docs | this spec, ADR 0003 and its note in ADR 0001, `docs/wiki/{roadmap,architecture,development,domain}.md` |
 
@@ -149,7 +151,8 @@ B depends on A. C and D are independent.
 | A Walker can't read one member's details | `MemberManagementTests.GetMember_AsWalker_Returns403` | B |
 | A second admin can demote the first | `RosterPolicyTests.CheckEdit_DemoteAdmin_OtherActiveAdminExists_Allows` | A |
 | Unknown member id | `MemberManagementTests.EditMember_UnknownId_Returns404`, `GetMember_UnknownId_Returns404` | B |
-| Mutating call without the header is refused | `CsrfHeaderTests.Post_WithoutHeader_Returns400AndChangesNothing`, `SignOut_WithoutHeader_Returns400AndKeepsSession` | B |
+| Mutating call without a valid token is refused (missing, another browser's, issued before sign-in); signed-out callers get 401 first | `AntiforgeryTests.*` | B |
+| SPA client sends, reuses and refreshes the token | `client.spec.ts` | C |
 | `ManageMembers` granted to Admin only | `RolePermissionsTests` | A |
 | Form: add, edit, field errors, server detail, disabled until loaded; links hidden without permission | `MemberFormPage.spec.ts`, `MembersPage.spec.ts` | C |
 

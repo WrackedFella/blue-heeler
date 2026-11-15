@@ -51,8 +51,8 @@ Tests are named for behaviour, mirror the Gherkin of the item, and are written f
 3. Put the rule in the domain as a pure function or aggregate method; the endpoint
    loads, calls the domain and saves.
 4. Return response records (e.g. `MemberResponse`), never entities.
-5. State-changing endpoints are covered by the `X-PAS-Request` header check for every
-   `/api` path; nothing to add per endpoint. Validate input in the domain into a result
+5. State-changing endpoints are covered by the antiforgery check for every `/api`
+   path; nothing to add per endpoint (API tests send the token via `ApiRequests`). Validate input in the domain into a result
    type (see `MemberDetails.Create`) and return `Results.ValidationProblem` with its
    field errors, so the SPA can show them next to the fields.
 

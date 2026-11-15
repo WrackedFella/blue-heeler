@@ -117,12 +117,12 @@ describe('MemberFormPage', () => {
   })
 
   it('shows the server detail for a 400 without field errors', async () => {
-    const { api } = fakeApi({ add: () => Promise.reject(new ApiError(400, '/api/members', 'Missing request header')) })
+    const { api } = fakeApi({ add: () => Promise.reject(new ApiError(400, '/api/members', 'Invalid antiforgery token')) })
     const { page } = await mountForm({ api })
 
     await page.find('form').trigger('submit')
     await settle()
 
-    expect(page.find('[role="alert"]').text()).toBe('Missing request header')
+    expect(page.find('[role="alert"]').text()).toBe('Invalid antiforgery token')
   })
 })

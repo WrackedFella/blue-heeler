@@ -36,20 +36,32 @@ export class ApiError extends Error {
   }
 }
 
-// Required on every state-changing call; the API refuses them without it (cross-site request protection).
-const requestHeader = { 'X-PAS-Request': '1' }
+// Cross-site request protection (ADR 0003): every state-changing call echoes an antiforgery
+// token in this header. The token is bound to who is signed in, so it is fetched lazily and
+// dropped when the session changes or a call is refused, and the next call fetches a fresh one.
+const tokenHeader = 'X-XSRF-TOKEN'
+let antiforgeryToken: Promise<string> | null = null
+
+function requestToken(): Promise<string> {
+  antiforgeryToken ??= send<{ token: string }>('GET', '/api/antiforgery/token').then((r) => r.token)
+  return antiforgeryToken
+}
 
 async function send<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const isRead = method === 'GET'
   const response = await fetch(path, {
     method,
     headers: {
       Accept: 'application/json',
-      ...(method === 'GET' ? {} : requestHeader),
+      ...(isRead ? {} : { [tokenHeader]: await requestToken() }),
       ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
-  if (!response.ok) throw await toError(response, path)
+  if (!response.ok) {
+    if (!isRead) antiforgeryToken = null
+    throw await toError(response, path)
+  }
   return response.status === 204 ? (undefined as T) : ((await response.json()) as T)
 }
 
@@ -74,6 +86,9 @@ export const getMember = (id: string): Promise<Member> => send<Member>('GET', `/
 export const addMember = (input: MemberInput): Promise<Member> => send<Member>('POST', '/api/members', input)
 export const editMember = (id: string, input: MemberInput): Promise<Member> =>
   send<Member>('PUT', `/api/members/${encodeURIComponent(id)}`, input)
-export const signOut = (): Promise<void> => send<void>('POST', '/api/auth/sign-out')
+export async function signOut(): Promise<void> {
+  await send<void>('POST', '/api/auth/sign-out')
+  antiforgeryToken = null
+}
 
 export const googleSignInUrl = '/api/auth/google'

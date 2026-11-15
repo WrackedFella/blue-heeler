@@ -6,6 +6,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddAppHosting(builder.Configuration);
 builder.Services.AddAppAuth(builder.Configuration);
+builder.Services.AddAppAntiforgery();
 builder.Services.AddMembers();
 
 var app = builder.Build();
@@ -15,11 +16,12 @@ app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.UseDefaultFiles();
 app.UseStaticFiles();
-app.UseMiddleware<CsrfHeaderMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<AntiforgeryValidationMiddleware>();
 
 app.MapHealthEndpoints();
+app.MapAntiforgeryEndpoints();
 app.MapAuthEndpoints();
 app.MapMemberEndpoints();
 // Client-side routes get the SPA; unknown API paths stay 404 (the literal "api" segment outranks the catch-all).
