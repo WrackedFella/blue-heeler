@@ -51,8 +51,10 @@ Tests are named for behaviour, mirror the Gherkin of the item, and are written f
 3. Put the rule in the domain as a pure function or aggregate method; the endpoint
    loads, calls the domain and saves.
 4. Return response records (e.g. `MemberResponse`), never entities.
-5. State-changing endpoints need antiforgery protection (not yet wired; the first one,
-   PAS-F1-02, adds it).
+5. State-changing endpoints are covered by the antiforgery check for every `/api`
+   path; nothing to add per endpoint (API tests send the token via `ApiRequests`). Validate input in the domain into a result
+   type (see `MemberDetails.Create`) and return `Results.ValidationProblem` with its
+   field errors, so the SPA can show them next to the fields.
 
 ### 4.2 A role
 

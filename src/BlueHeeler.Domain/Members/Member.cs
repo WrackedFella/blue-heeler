@@ -15,20 +15,31 @@ public sealed class Member
             throw new ArgumentException("A member id must not be empty.", nameof(id));
         }
 
-        ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(email);
-        if (name.Trim().Length > MaxNameLength)
-        {
-            throw new ArgumentException($"A member name must be at most {MaxNameLength} characters.", nameof(name));
-        }
 
         Id = id;
-        Name = name.Trim();
+        Name = ValidName(name);
         Email = email;
         Role = role;
         Tier = tier;
         Status = status;
         CreatedAt = createdAt;
+    }
+
+    private static string ValidName(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        var trimmed = name.Trim();
+        return trimmed.Length <= MaxNameLength
+            ? trimmed
+            : throw new ArgumentException($"A member name must be at most {MaxNameLength} characters.", nameof(name));
+    }
+
+    /// <summary>Puts a new member on the roster.</summary>
+    public static Member Add(Guid id, MemberDetails details, DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(details);
+        return new Member(id, details.Name, details.Email, details.Role, details.Tier, details.Status, now);
     }
 
     /// <summary>Stable identifier.</summary>
@@ -51,4 +62,18 @@ public sealed class Member
 
     /// <summary>When the member was added.</summary>
     public DateTimeOffset CreatedAt { get; }
+
+    /// <summary>Replaces the editable fields. Check <see cref="Access.RosterPolicy.CheckEdit"/> first.</summary>
+    /// <exception cref="ArgumentException">The name is blank or longer than <see cref="MaxNameLength"/>; details from
+    /// <see cref="MemberDetails.Create"/> never are.</exception>
+    public void Apply(MemberDetails details)
+    {
+        ArgumentNullException.ThrowIfNull(details);
+        ArgumentNullException.ThrowIfNull(details.Email);
+        Name = ValidName(details.Name);
+        Email = details.Email;
+        Role = details.Role;
+        Tier = details.Tier;
+        Status = details.Status;
+    }
 }

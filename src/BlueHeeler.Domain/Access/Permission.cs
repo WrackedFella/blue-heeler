@@ -11,4 +11,7 @@ public enum Permission
 {
     /// <summary>See the member list and member details.</summary>
     ViewMembers,
+
+    /// <summary>Add members and change their details, role, tier and status.</summary>
+    ManageMembers,
 }

@@ -8,7 +8,7 @@ public static class RolePermissions
 {
     private static readonly FrozenDictionary<Role, FrozenSet<Permission>> Table = new Dictionary<Role, FrozenSet<Permission>>
     {
-        [Role.Admin] = FrozenSet.ToFrozenSet([Permission.ViewMembers]),
+        [Role.Admin] = FrozenSet.ToFrozenSet([Permission.ViewMembers, Permission.ManageMembers]),
         [Role.ShiftLead] = FrozenSet<Permission>.Empty,
         [Role.Walker] = FrozenSet<Permission>.Empty,
     }.ToFrozenDictionary();

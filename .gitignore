@@ -484,3 +484,6 @@ $RECYCLE.BIN/
 # Web
 node_modules/
 web/dist/
+
+# Mutation testing
+StrykerOutput/

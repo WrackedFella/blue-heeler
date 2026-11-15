@@ -64,6 +64,15 @@ classDiagram
     class Permission {
         <<enumeration>>
         ViewMembers
+        ManageMembers
+    }
+    class MemberDetails {
+        <<record>>
+        +Create(name, email, role, tier, status) MemberDetailsResult
+    }
+    class RosterPolicy {
+        <<static>>
+        +CheckEdit(current, proposed, activeAdminCount) EditRefusal
     }
     class RolePermissions {
         <<static>>
@@ -79,6 +88,8 @@ classDiagram
     SignInDecision <|-- SignIn
     SignInDecision <|-- BootstrapFirstAdmin
     SignInDecision <|-- Refuse
+    Member ..> MemberDetails
+    RosterPolicy ..> Member
     Member --> EmailAddress
     Member --> Role
     Member --> WalkerTier
@@ -92,10 +103,13 @@ classDiagram
 |---|---|---|
 | `Member` | `Members/` | Non-empty id; name not blank, ≤ 200 after trimming; email required; `Tier` is null for members who don't walk |
 | `EmailAddress` | `Members/` | Trimmed and lower-cased, one `@` between non-empty parts, no whitespace, ≤ 254 chars; `TryCreate` returns null otherwise. Deliberately loose: the identity provider or magic link proves deliverability |
+| `MemberDetails` | `Members/` | The editable fields. `Create` validates raw input (name 1–200, email, role and status present, tier blank or 1–3) and returns `Valid` or `Invalid` with errors per field; `Member.Add` and `member.Apply` re-check the name, so details built without `Create` can't break the invariant |
+| `RosterPolicy` | `Access/` | While a member is the only Active Admin, demoting or deactivating them is refused (`LastActiveAdmin`), and so is changing their email (`LastActiveAdminEmail`) |
 | `RolePermissions` | `Access/` | Every `Role` has a row; a missing row throws, so a new role can't silently grant nothing |
 | `SignInPolicy` | `Access/` | Unverified email → refuse; existing member → sign in only if Active; unknown email → bootstrap only if it is the first-admin email and no Admin exists; otherwise refuse |
 
-Current role grants: `Admin` → `ViewMembers`; `ShiftLead` and `Walker` → none yet.
+Current role grants: `Admin` → `ViewMembers`, `ManageMembers`; `ShiftLead` and
+`Walker` → none yet.
 Each new endpoint adds its `Permission` and the rows that grant it.
 
 ## 3 The model planned

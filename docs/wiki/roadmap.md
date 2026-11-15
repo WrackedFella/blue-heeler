@@ -67,8 +67,8 @@ a spec in [`docs/specs/`](../specs/) before code.
 | Card | Item | Depends on | Status |
 |---|---|---|---|
 | PAS-F1-01 | Admin signs in with Google and sees the member list | none | Done ([spec](../specs/PAS-F1-01-admin-signs-in.md)) |
-| PAS-F1-02 | Admin adds and edits members, who can then sign in | 01 | Next |
-| PAS-F1-03 | Member signs in with an emailed link | 02 | |
+| PAS-F1-02 | Admin adds and edits members, who can then sign in | 01 | Done ([spec](../specs/PAS-F1-02-admin-manages-members.md)) |
+| PAS-F1-03 | Member signs in with an emailed link | 02 | Next |
 | PAS-F1-04 | Admin creates a shift that members can see | 02 | |
 | PAS-F1-05 | Walker signs up for a shift and sees it under My shifts | 04 | |
 | PAS-F1-06 | Walker cancels a sign-up | 05 | |
@@ -82,33 +82,6 @@ Copied from the approved plan so they survive outside it. When an item's spec is
 written, it becomes the source and the block here is deleted.
 
 ```gherkin
-# PAS-F1-02
-Scenario: A new member signs in
-  Given an admin adds "Sam" with email "sam@example.org", role Walker, Tier 1
-  When Sam signs in with Google as "sam@example.org"
-  Then Sam is signed in as an Active Walker, Tier 1
-Scenario: An unknown email is turned away
-  Given no member has the email "stranger@example.org"
-  When someone signs in with Google as "stranger@example.org"
-  Then they are not signed in
-  And they are told to contact the volunteer coordinator
-Scenario: An inactive member is turned away
-  Given an admin sets Sam to Inactive
-  When Sam signs in
-  Then Sam is not signed in
-Scenario: Only admins manage members
-  Given Sam is a Walker
-  When Sam opens the member list
-  Then Sam is refused
-Scenario Outline: An admin changes a member's role or tier
-  Given Sam is a Walker, Tier 1
-  When an admin sets Sam's <field> to <value>
-  Then the member list shows Sam with <field> <value>
-  Examples:
-    | field | value      |
-    | role  | Shift Lead |
-    | tier  | 2          |
-
 # PAS-F1-03
 Scenario: A member signs in by email link
   Given Sam is an Active member with email "sam@example.org"
